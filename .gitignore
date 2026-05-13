@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+.vite/
+*.log
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Runtime data (logs, persisted state)
+data/*.json
+data/*.jsonl
+data/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Personal work tracking (not part of open source)
+00TEM/
+
+# Archived legacy artifacts (kept locally for reference)
+ARCHIVED/
+
+# Local secrets
+.env
+.env.local
