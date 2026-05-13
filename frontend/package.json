@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-healthcheck-frontend",
+  "name": "claude-quota-warmer-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",

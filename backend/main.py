@@ -50,7 +50,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="claude-code-healthcheck",
+    title="claude-quota-warmer",
     version="0.1.0",
     description="Keep your Claude Code 5h quota window warm.",
     lifespan=lifespan,
@@ -178,7 +178,7 @@ else:
 
 
 def run_cli() -> None:
-    parser = argparse.ArgumentParser(prog="claude-healthcheck")
+    parser = argparse.ArgumentParser(prog="claude-quota-warmer")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--reload", action="store_true", help="dev mode")

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install claude-code-healthcheck as a background daemon.
+# Install claude-quota-warmer as a background daemon.
 # - macOS: registers a LaunchAgent that runs the daemon under your user session.
 # - Linux: prints a systemd --user unit you can drop in place.
 set -euo pipefail
@@ -7,7 +7,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST="${HEALTHCHECK_HOST:-127.0.0.1}"
 PORT="${HEALTHCHECK_PORT:-8765}"
-LABEL="${HEALTHCHECK_LABEL:-com.user.claude-code-healthcheck}"
+LABEL="${HEALTHCHECK_LABEL:-com.user.claude-quota-warmer}"
 PY="${HEALTHCHECK_PYTHON:-$(command -v python3 || command -v python)}"
 
 cd "$PROJECT_DIR"

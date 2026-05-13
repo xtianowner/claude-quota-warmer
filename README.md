@@ -1,4 +1,4 @@
-# claude-code-healthcheck
+# claude-quota-warmer
 
 > Keep your Claude Code 5-hour quota window warm by firing one real
 > request at moments you choose.
@@ -57,8 +57,8 @@ build), and an authenticated **`claude`** or **`reclaude`** CLI on
 your `PATH`.
 
 ```bash
-git clone https://github.com/xtianowner/claude-code-healthcheck.git
-cd claude-code-healthcheck
+git clone https://github.com/xtianowner/claude-quota-warmer.git
+cd claude-quota-warmer
 ./scripts/install.sh
 ```
 

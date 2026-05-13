@@ -142,7 +142,7 @@ export default function App() {
         </div>
 
         <footer className="mt-10 pb-4 text-center text-xs text-slate-400">
-          claude-code-healthcheck · MIT
+          claude-quota-warmer · MIT
         </footer>
       </div>
     </>

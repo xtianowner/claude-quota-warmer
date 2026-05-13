@@ -1,6 +1,6 @@
 # Architecture
 
-Internal design of `claude-code-healthcheck`. Read this if you want to
+Internal design of `claude-quota-warmer`. Read this if you want to
 hack on it, or if you want to understand exactly what runs at trigger
 time.
 

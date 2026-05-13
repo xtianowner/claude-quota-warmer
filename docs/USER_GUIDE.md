@@ -1,6 +1,6 @@
 # User guide
 
-Plain-language walkthrough for using `claude-code-healthcheck`. For
+Plain-language walkthrough for using `claude-quota-warmer`. For
 architecture and API details see [ARCHITECTURE.md](./ARCHITECTURE.md)
 and [API.md](./API.md).
 
@@ -32,8 +32,8 @@ it's a list of moments you choose.
 ## Install
 
 ```bash
-git clone https://github.com/xtianowner/claude-code-healthcheck.git
-cd claude-code-healthcheck
+git clone https://github.com/xtianowner/claude-quota-warmer.git
+cd claude-quota-warmer
 ./scripts/install.sh
 ```
 
@@ -149,7 +149,7 @@ browser's `localStorage`.
 
 ### Update the tool
 ```bash
-cd ~/path/to/claude-code-healthcheck
+cd ~/path/to/claude-quota-warmer
 git pull
 ./scripts/install.sh   # idempotent; rebuilds and re-registers
 ```
@@ -211,7 +211,7 @@ Re-install with `HEALTHCHECK_PORT=8766 ./scripts/install.sh`.
 ## Where things live
 
 ```
-~/path/to/claude-code-healthcheck/
+~/path/to/claude-quota-warmer/
 ├── data/
 │   ├── config.json        # Your settings + schedule points
 │   ├── runs.jsonl         # Append-only run history
@@ -225,5 +225,5 @@ The dashboard's *Refresh* button on the History card re-reads this
 file. You can also tail logs directly:
 
 ```bash
-tail -f ~/path/to/claude-code-healthcheck/data/logs/daemon.out.log
+tail -f ~/path/to/claude-quota-warmer/data/logs/daemon.out.log
 ```

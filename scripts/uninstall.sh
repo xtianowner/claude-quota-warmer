@@ -2,7 +2,7 @@
 # Remove the OS-level service. Leaves code and data/ intact.
 set -euo pipefail
 
-LABEL="${HEALTHCHECK_LABEL:-com.user.claude-code-healthcheck}"
+LABEL="${HEALTHCHECK_LABEL:-com.user.claude-quota-warmer}"
 
 case "$(uname -s)" in
   Darwin)
