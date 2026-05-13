@@ -12,6 +12,8 @@ def utcnow_iso() -> str:
 
 
 PointStatus = Literal["pending", "running", "done", "failed"]
+PointSource = Literal["manual", "auto"]
+Mode = Literal["manual", "auto_reclaude"]
 
 
 class SchedulePoint(BaseModel):
@@ -21,6 +23,8 @@ class SchedulePoint(BaseModel):
     # ISO 8601 with timezone offset, e.g. "2026-05-14T05:30:00+08:00"
     scheduled_at: str
     status: PointStatus = "pending"
+    # "manual" = user added in UI; "auto" = derived from reclaude resets_at_ms
+    source: PointSource = "manual"
     # Linked RunRecord.id once executed
     run_id: Optional[str] = None
     # Free-form note shown on the point status, e.g. "missed (past time on startup)"
@@ -28,11 +32,29 @@ class SchedulePoint(BaseModel):
     created_at: str = Field(default_factory=utcnow_iso)
 
 
+class QuotaSnapshot(BaseModel):
+    """Last successful response from /api/app/billing/carpool-quota."""
+
+    used_usd: float
+    quota_usd: float
+    resets_at_ms: int
+    enabled: bool = True
+    status: str = "unknown"
+    fetched_at: str = Field(default_factory=utcnow_iso)
+
+
 class Config(BaseModel):
     """Persisted user-editable configuration."""
 
     enabled: bool = False
     schedule_points: list[SchedulePoint] = Field(default_factory=list)
+
+    # manual: user adds absolute datetimes one-by-one.
+    # auto_reclaude: scheduler polls reclaude carpool-quota every 10 min and
+    # auto-schedules the next point at resets_at_ms + auto_offset_seconds.
+    mode: Mode = "manual"
+    reclaude_email: Optional[str] = None
+    auto_offset_seconds: int = Field(default=30, ge=0, le=3600)
 
     # Command to invoke. Default `reclaude`; can be set to `claude` for vanilla Claude Code.
     command: str = "reclaude"
@@ -79,6 +101,10 @@ class StatusResponse(BaseModel):
     last_run: Optional[RunRecord]
     consecutive_successes: int
     running: bool
+    # Latest known reclaude snapshot (None if mode != auto_reclaude or never fetched)
+    quota_snapshot: Optional[QuotaSnapshot] = None
+    # Last reclaude error code, e.g. "login_required" / "network" / "account_disabled"
+    reclaude_error: Optional[str] = None
 
 
 class AddSchedulePointRequest(BaseModel):

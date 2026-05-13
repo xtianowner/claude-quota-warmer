@@ -1,4 +1,4 @@
-import type { Config, RunRecord, Status } from "./types";
+import type { Config, ReclaudeStatus, RunRecord, Status } from "./types";
 
 const BASE = "";
 
@@ -33,4 +33,14 @@ export const api = {
     }),
   deleteSchedulePoint: (id: string) =>
     req<Config>(`/api/schedule/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  reclaudeLogin: (email: string, password: string) =>
+    req<ReclaudeStatus>("/api/reclaude/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  reclaudeSnapshot: () => req<ReclaudeStatus>("/api/reclaude/snapshot"),
+  reclaudeRefresh: () =>
+    req<ReclaudeStatus>("/api/reclaude/refresh", { method: "POST" }),
+  reclaudeLogout: () =>
+    req<Config>("/api/reclaude/credentials", { method: "DELETE" }),
 };

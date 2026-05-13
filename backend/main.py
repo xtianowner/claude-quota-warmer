@@ -12,14 +12,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from pydantic import BaseModel
+
 from .config import ConfigStore
 from .models import (
     AddSchedulePointRequest,
     Config,
+    QuotaSnapshot,
     RunRecord,
     StatusResponse,
 )
+from .reclaude import AccountDisabled, LoginRequired, ReclaudeError
 from .scheduler import HealthcheckScheduler
+from .secrets import SecretsStore
 from .storage import RunStore
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -35,9 +40,12 @@ logging.basicConfig(
 )
 
 
+SECRETS_PATH = DATA_DIR / "secrets.json"
+
 config_store = ConfigStore(CONFIG_PATH)
 run_store = RunStore(RUNS_PATH)
-scheduler = HealthcheckScheduler(config_store, run_store)
+secrets_store = SecretsStore(SECRETS_PATH)
+scheduler = HealthcheckScheduler(config_store, run_store, secrets_store=secrets_store)
 
 
 @asynccontextmanager
@@ -78,6 +86,8 @@ def get_status() -> StatusResponse:
         last_run=run_store.last(),
         consecutive_successes=scheduler.consecutive_successes,
         running=scheduler.running,
+        quota_snapshot=scheduler.latest_snapshot,
+        reclaude_error=scheduler.reclaude_error,
     )
 
 
@@ -140,6 +150,105 @@ def list_runs(limit: int = 50) -> list[RunRecord]:
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True}
+
+
+# ---------- reclaude (auto mode) ------------------------------------------
+
+
+class ReclaudeLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class ReclaudeStatusResponse(BaseModel):
+    has_password: bool
+    email: str | None
+    snapshot: QuotaSnapshot | None
+    error: str | None
+
+
+@app.post("/api/reclaude/login", response_model=ReclaudeStatusResponse)
+async def reclaude_login(req: ReclaudeLoginRequest) -> ReclaudeStatusResponse:
+    """Validate credentials, persist them, and trigger an immediate poll."""
+    try:
+        rc_sid = await scheduler.reclaude.login(req.email, req.password)
+    except LoginRequired:
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    except ReclaudeError as exc:
+        raise HTTPException(status_code=502, detail=f"reclaude.ai unreachable: {exc}")
+
+    secrets_store.set_password(req.password)
+    secrets_store.set_cookie(rc_sid)
+
+    cfg = config_store.load()
+    cfg.reclaude_email = req.email
+    cfg.mode = "auto_reclaude"  # login implies the user wants auto mode
+    config_store.save(cfg)
+
+    # Verify the cookie by pulling a snapshot; surface any account-level issue early.
+    try:
+        snap = await scheduler.reclaude.get_quota(rc_sid)
+        scheduler._latest_snapshot = snap  # noqa: SLF001 — internal sync
+        scheduler._reclaude_error = None  # noqa: SLF001
+    except AccountDisabled as exc:
+        scheduler._reclaude_error = "account_disabled"  # noqa: SLF001
+        raise HTTPException(status_code=400, detail=str(exc))
+    except (LoginRequired, ReclaudeError) as exc:
+        # Cookie was just minted; treat any failure here as a server-side glitch.
+        scheduler._reclaude_error = "network"  # noqa: SLF001
+        raise HTTPException(status_code=502, detail=f"quota fetch failed: {exc}")
+
+    # Force a resync inline (not fire-and-forget) so this response — and the
+    # frontend's follow-up /api/status — already reflect the post-poll state.
+    # Otherwise a stale "not_configured" error from the earlier mode-switch
+    # poll can linger in the UI for a few seconds after login.
+    if cfg.mode == "auto_reclaude":
+        await scheduler.poll_reclaude_now()
+
+    return ReclaudeStatusResponse(
+        has_password=True,
+        email=req.email,
+        snapshot=scheduler.latest_snapshot,
+        error=scheduler.reclaude_error,
+    )
+
+
+@app.get("/api/reclaude/snapshot", response_model=ReclaudeStatusResponse)
+def reclaude_snapshot() -> ReclaudeStatusResponse:
+    cfg = config_store.load()
+    return ReclaudeStatusResponse(
+        has_password=secrets_store.has_password(),
+        email=cfg.reclaude_email,
+        snapshot=scheduler.latest_snapshot,
+        error=scheduler.reclaude_error,
+    )
+
+
+@app.post("/api/reclaude/refresh", response_model=ReclaudeStatusResponse)
+async def reclaude_refresh() -> ReclaudeStatusResponse:
+    """Force a poll cycle now (don't wait for the 10-min tick)."""
+    await scheduler.poll_reclaude_now()
+    cfg = config_store.load()
+    return ReclaudeStatusResponse(
+        has_password=secrets_store.has_password(),
+        email=cfg.reclaude_email,
+        snapshot=scheduler.latest_snapshot,
+        error=scheduler.reclaude_error,
+    )
+
+
+@app.delete("/api/reclaude/credentials", response_model=Config)
+def reclaude_logout() -> Config:
+    """Clear cookie + password and drop back to manual mode."""
+    secrets_store.clear()
+    cfg = config_store.load()
+    cfg.reclaude_email = None
+    cfg.mode = "manual"
+    saved = config_store.save(cfg)
+    scheduler._latest_snapshot = None  # noqa: SLF001
+    scheduler._reclaude_error = None  # noqa: SLF001
+    scheduler.apply_config(saved)
+    return saved
 
 
 # ---------- Frontend static (production) ----------------------------------

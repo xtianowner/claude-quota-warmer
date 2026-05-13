@@ -31,20 +31,36 @@ Snapshot of runtime state. The dashboard polls this every 5s.
     "id": "1e0971888c13",
     "scheduled_at": "2026-05-14T05:30:00+08:00",
     "status": "pending",
+    "source": "manual",
     "run_id": null,
     "note": null,
     "created_at": "2026-05-13T10:30:42+00:00"
   },
   "last_run": { /* RunRecord — see GET /api/runs */ },
   "consecutive_successes": 3,
-  "running": false
+  "running": false,
+  "quota_snapshot": {
+    "used_usd": 12.34,
+    "quota_usd": 50.0,
+    "resets_at_ms": 1747200000000,
+    "enabled": true,
+    "status": "active",
+    "fetched_at": "2026-05-13T10:25:00+00:00"
+  },
+  "reclaude_error": null
 }
 ```
 
 - `next_point` — the earliest schedule point with `status="pending"`
   whose `scheduled_at` is in the future. `null` if no such point.
+- `next_point.source` — `"manual"` (user-added) or `"auto"` (computed
+  by the reclaude poll job).
 - `last_run` — most recent `RunRecord` of any trigger source.
 - `running` — `true` while a healthcheck is in flight.
+- `quota_snapshot` — last successful `/api/app/billing/carpool-quota`
+  response, or `null` if mode is manual or the poll has never succeeded.
+- `reclaude_error` — `null` on success, otherwise one of
+  `"not_configured" | "login_required" | "account_disabled" | "network"`.
 
 ## GET /api/config
 
@@ -54,6 +70,9 @@ Current configuration document.
 {
   "enabled": false,
   "schedule_points": [],
+  "mode": "manual",
+  "reclaude_email": null,
+  "auto_offset_seconds": 30,
   "command": "reclaude",
   "extra_args": [],
   "prompt": "Claude Code healthcheck: 请只回复 HEALTHCHECK_OK",
@@ -75,6 +94,9 @@ Constraints (Pydantic-validated):
 |---|---|---|
 | `enabled` | bool | — |
 | `schedule_points` | list[SchedulePoint] | — (use the schedule endpoints instead) |
+| `mode` | `"manual" \| "auto_reclaude"` | — |
+| `reclaude_email` | string \| null | set by `/api/reclaude/login`, cleared by logout |
+| `auto_offset_seconds` | int | 0 ≤ x ≤ 3600; default 30 |
 | `command` | string | — |
 | `extra_args` | list[string] | — |
 | `prompt` | string | — |
@@ -141,6 +163,52 @@ Returns the resulting `RunRecord`.
 Errors:
 - `409 Conflict` — another run is already in flight. Wait for it,
   then retry.
+
+## POST /api/reclaude/login
+
+Authenticate against `https://reclaude.ai`, store the resulting `rc_sid`
+cookie and the password in `data/secrets.json`, set `config.mode` to
+`auto_reclaude`, and queue an immediate poll.
+
+Request:
+```json
+{ "email": "you@example.com", "password": "..." }
+```
+
+Response (`ReclaudeStatus`):
+```json
+{
+  "has_password": true,
+  "email": "you@example.com",
+  "snapshot": { /* QuotaSnapshot — see GET /api/status */ },
+  "error": null
+}
+```
+
+Errors:
+- `401 Unauthorized` — reclaude rejected the credentials.
+- `400 Bad Request` — `AccountDisabled` (carpool not active for this account).
+- `502 Bad Gateway` — reclaude.ai unreachable or returned an unexpected response.
+
+## GET /api/reclaude/snapshot
+
+Read-only view of the last `QuotaSnapshot` and current error code.
+
+```json
+{ "has_password": true, "email": "you@example.com", "snapshot": {...}, "error": null }
+```
+
+## POST /api/reclaude/refresh
+
+Force a poll cycle now instead of waiting for the 10-minute tick.
+Returns the same shape as `/api/reclaude/snapshot`.
+
+## DELETE /api/reclaude/credentials
+
+Clear `rc_sid` + password from `data/secrets.json`, set
+`config.reclaude_email = null`, set `config.mode = "manual"`. Returns
+the updated `Config`. Existing `source="auto"` points are preserved
+on the schedule list (the daemon stops chaining new ones).
 
 ## GET /api/runs?limit=N
 
