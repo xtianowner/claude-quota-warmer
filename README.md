@@ -1,132 +1,128 @@
 # claude-code-healthcheck
 
-> Keep your Claude Code 5-hour quota window warm by firing one real request on a schedule.
+> Keep your Claude Code 5-hour quota window warm by firing one real
+> request at moments you choose.
 
-A tiny daemon + web UI that periodically sends a real request to the `claude` (or `reclaude`) CLI, verifies the response, and retries on failure — so the rolling 5h quota window never lapses unused.
+A small daemon + web UI for Claude Code (or [reclaude](https://github.com/xtianowner/reclaude))
+users. You stage a list of absolute datetimes ("2026-05-14 05:30 local
+time") and the daemon spawns one real `claude -p ...` call at each
+moment, verifies the response, retries on failure, and records the
+result. Local-only — nothing leaves your machine except the request
+that Claude Code itself makes.
 
-- **Backend**: FastAPI + APScheduler, async
-- **Frontend**: React + Vite + Tailwind, single page
-- **Daemon**: lives in `127.0.0.1:8765`; the OS service (launchd on macOS, systemd user unit on Linux) just keeps it alive
-- **Retry-to-success**: each scheduled fire tries up to `max_retries + 1` times with configurable backoff before recording a failure
-- **i18n**: 中文 / English
-- **MIT licensed**
+<p align="center">
+  <img src="docs/images/dashboard-desktop.png" width="720" alt="Desktop dashboard">
+</p>
+
+<p align="center">
+  <img src="docs/images/dashboard-mobile.png" width="320" alt="Mobile dashboard">
+  &nbsp;
+  <img src="docs/images/dashboard-history.png" width="380" alt="History expanded">
+</p>
 
 ## Why
 
-Claude Code's plan grants quota in rolling 5-hour windows. If you skip a window entirely, you can't "save up" the unused quota — it's just gone. This tool fires a single tiny request inside each window so the window stays counted as used.
+Claude Code plans grant quota in **rolling 5-hour windows**. Unused
+quota inside a window can't be carried over. If you don't touch
+Claude Code for half a day, the windows that pass empty are gone.
 
-> The request itself **does** consume a small amount of quota. The point is that one cheap healthcheck per window > forfeiting the whole window.
+This tool lets you say "fire one healthcheck at these specific times"
+so otherwise-idle windows count as used. It deliberately does *not*
+pulse continuously — you choose the moments.
+
+> The request itself consumes a tiny bit of quota. The point is that
+> one cheap healthcheck per window is a lot less than forfeiting the
+> whole window.
+
+## Features
+
+- **Absolute datetime scheduling** — stage any number of one-off
+  trigger points; each fires once and records the result
+- **Retry to success** — failed attempts retry with configurable
+  exponential backoff before being marked failed
+- **Real-output validation** — checks the subprocess's actual stdout
+  for a marker; not a hardcoded green pixel ([see VERIFICATION.md](./docs/VERIFICATION.md))
+- **Persistent across reboots** — installs a macOS LaunchAgent or
+  Linux systemd user unit that keeps the daemon alive
+- **Web UI** — glassmorphism dashboard, responsive down to 320px,
+  zh/en bilingual
+- **Local-only** — daemon binds to `127.0.0.1:8765`; no auth, no
+  telemetry
+- **MIT licensed**
 
 ## Quick start
 
-Requires Python ≥ 3.10 and Node.js ≥ 18 (for the UI build). The CLI you want to keep alive (`claude` or `reclaude`) must already be installed and authenticated.
+Requires **Python ≥ 3.10**, **Node.js ≥ 18** (for the one-time UI
+build), and an authenticated **`claude`** or **`reclaude`** CLI on
+your `PATH`.
 
 ```bash
-git clone https://github.com/<your-user>/claude-code-healthcheck.git
+git clone https://github.com/xtianowner/claude-code-healthcheck.git
 cd claude-code-healthcheck
-
-# One-shot install: creates .venv, installs deps, builds UI, registers the OS service
 ./scripts/install.sh
 ```
 
-Then open: <http://127.0.0.1:8765>
+Then open <http://127.0.0.1:8765>:
 
-1. Set the trigger interval (default **4h 50m** — comfortably inside the 5h window)
-2. Confirm the command (`reclaude` or `claude`)
-3. Click **Enable schedule**
+1. Click **Add a trigger point**, pick a future datetime, **Add**.
+2. Click the **Enabled** toggle in the top-right.
+3. Optional: click **Trigger now** to verify everything works.
 
-That's it. The daemon will fire one healthcheck per interval. If the call fails (network blip, auth expired, etc.) it retries with exponential backoff until the budget is exhausted.
-
-### Uninstall
-
-```bash
-./scripts/uninstall.sh
-```
-
-Leaves `./data/` (config + run history) intact. Delete the project directory to fully remove.
-
-### Customize the service label
-
-```bash
-HEALTHCHECK_LABEL=com.acme.claude-keepalive \
-HEALTHCHECK_PORT=8765 \
-./scripts/install.sh
-```
+That's the whole flow. The full [User guide](./docs/USER_GUIDE.md)
+covers configuration, troubleshooting, and uninstalling.
 
 ## How it works
 
 ```
-            ┌───────────────────────────────┐
-launchd ───>│  python -m backend.main       │   serves UI + API on
-(systemd)   │  ├── APScheduler (interval)   │   127.0.0.1:8765
-            │  └── runs `reclaude -p ...`   │
-            │      verifies HEALTHCHECK_OK  │
-            └───────────────────────────────┘
-                      │
-                      └─> data/config.json  (user-editable via UI)
-                          data/runs.jsonl   (append-only run log)
+launchd / systemd → python -m backend.main (127.0.0.1:8765)
+                    │
+                    ├─ FastAPI: REST + serves the React SPA
+                    ├─ APScheduler: one DateTrigger per pending point
+                    └─ at fire time:
+                          asyncio.create_subprocess_exec(reclaude, -p, prompt)
+                          → check exit==0 AND marker in stdout
+                          → retry with backoff on failure
+                          → persist RunRecord
 ```
 
-Each scheduled fire spawns the configured command, captures stdout+stderr, and checks:
+Storage:
+- `data/config.json` — your settings + the schedule point list
+- `data/runs.jsonl` — append-only run history with per-attempt detail
 
-1. `exit_code == 0`
-2. `expected_marker` is present in the output (default: `HEALTHCHECK_OK`)
+Architecture diagram, data model, and lifecycle details are in
+[ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
-If either fails, the runner sleeps for `retry_backoff_seconds[i]` and tries again, up to `max_retries + 1` attempts total. The full attempt history is persisted.
+## Docs
 
-## Configuration
-
-All fields are editable in the UI. Persisted to `data/config.json`:
-
-| Field | Default | Notes |
-|---|---|---|
-| `enabled` | `false` | Master on/off |
-| `interval_seconds` | `17400` (4h 50m) | Must be < 5h to keep window warm |
-| `command` | `reclaude` | Or `claude` for the vanilla CLI |
-| `extra_args` | `[]` | Inserted before `-p` |
-| `prompt` | `Claude Code healthcheck: 请只回复 HEALTHCHECK_OK` | Sent via `-p` |
-| `expected_marker` | `HEALTHCHECK_OK` | Substring check on output |
-| `timeout_seconds` | `120` | Per attempt |
-| `max_retries` | `3` | Attempts after the initial = 4 max |
-| `retry_backoff_seconds` | `[30, 120, 300]` | Sleep before retry N |
-
-## API
-
-REST API at `http://127.0.0.1:8765/api`:
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/status` | Snapshot: enabled, next_run_at, last_run, streak |
-| `GET` | `/api/config` | Current config |
-| `PUT` | `/api/config` | Replace config (full document) |
-| `POST` | `/api/enable` / `/api/disable` | Toggle scheduling |
-| `POST` | `/api/trigger` | Run one healthcheck immediately |
-| `GET` | `/api/runs?limit=50` | Recent run records |
-
-Auto-generated OpenAPI docs at `/docs`.
+| | |
+|---|---|
+| [User guide](./docs/USER_GUIDE.md) | Day-to-day usage, troubleshooting, FAQs |
+| [Architecture](./docs/ARCHITECTURE.md) | Internal design, modules, data flow |
+| [API reference](./docs/API.md) | REST endpoints; OpenAPI live at `/docs` |
+| [Verification](./docs/VERIFICATION.md) | How to prove the success badge isn't fake |
+| [Lessons](./docs/LESSONS.md) | Design decisions retired during development |
 
 ## Development
 
 ```bash
 ./scripts/dev.sh
-# backend hot-reload on :8765, vite dev on :5173 (proxies /api -> :8765)
+# backend on :8765 with --reload
+# vite dev on :5173 (proxies /api to :8765)
 ```
 
 Open <http://127.0.0.1:5173>.
 
-## Project layout
+The `scripts/dev/` directory has Playwright-based visual audit
+scripts used during UI work. See [scripts/dev/README.md](./scripts/dev/README.md).
 
-```
-backend/        FastAPI app, scheduler, runner, storage
-frontend/       Vite + React + Tailwind single-page app
-scripts/        install.sh, uninstall.sh, dev.sh
-data/           config.json + runs.jsonl (gitignored)
-ARCHIVED/       legacy v0 shell + plist (kept for reference)
-```
+## Project status
 
-## Status
+Early. Works on macOS (tested). Linux systemd path included but
+lightly tested. Windows is not supported (use WSL).
 
-Early. Works on macOS. Linux systemd path is included but lightly tested. Windows: not supported (use WSL).
+PRs welcome — especially Linux corrections, additional locales,
+alternative service backends (cron, NSSM for Windows), or
+verification additions.
 
 ## License
 
