@@ -13,7 +13,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import ConfigStore
-from .models import Config, RunRecord, StatusResponse
+from .models import (
+    AddSchedulePointRequest,
+    Config,
+    RunRecord,
+    StatusResponse,
+)
 from .scheduler import HealthcheckScheduler
 from .storage import RunStore
 
@@ -69,7 +74,7 @@ def get_status() -> StatusResponse:
     return StatusResponse(
         enabled=cfg.enabled,
         config=cfg,
-        next_run_at=scheduler.next_run_at(),
+        next_point=scheduler.next_point(),
         last_run=run_store.last(),
         consecutive_successes=scheduler.consecutive_successes,
         running=scheduler.running,
@@ -104,6 +109,19 @@ def disable() -> Config:
     saved = config_store.save(cfg)
     scheduler.apply_config(saved)
     return saved
+
+
+@app.post("/api/schedule", response_model=Config)
+def add_schedule(req: AddSchedulePointRequest) -> Config:
+    try:
+        return scheduler.add_point(req.scheduled_at)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"invalid datetime: {exc}")
+
+
+@app.delete("/api/schedule/{point_id}", response_model=Config)
+def delete_schedule(point_id: str) -> Config:
+    return scheduler.remove_point(point_id)
 
 
 @app.post("/api/trigger", response_model=RunRecord)

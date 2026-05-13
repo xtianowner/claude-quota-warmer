@@ -1,6 +1,17 @@
+export type PointStatus = "pending" | "running" | "done" | "failed";
+
+export interface SchedulePoint {
+  id: string;
+  scheduled_at: string;
+  status: PointStatus;
+  run_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 export interface Config {
   enabled: boolean;
-  interval_seconds: number;
+  schedule_points: SchedulePoint[];
   command: string;
   extra_args: string[];
   prompt: string;
@@ -23,6 +34,7 @@ export interface Attempt {
 export interface RunRecord {
   id: string;
   trigger: "schedule" | "manual";
+  point_id: string | null;
   started_at: string;
   ended_at: string;
   status: "success" | "fail";
@@ -32,7 +44,7 @@ export interface RunRecord {
 export interface Status {
   enabled: boolean;
   config: Config;
-  next_run_at: string | null;
+  next_point: SchedulePoint | null;
   last_run: RunRecord | null;
   consecutive_successes: number;
   running: boolean;

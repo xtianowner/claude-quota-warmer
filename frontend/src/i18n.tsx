@@ -13,34 +13,55 @@ type Messages = Record<string, string>;
 
 const zh: Messages = {
   title: "Claude Code 限额刷新",
-  subtitle: "定时发送一次真实请求，保持 5 小时配额窗口活跃",
+  subtitle: "在你设定的时刻发送真实请求，保持 5 小时配额窗口活跃",
   enabled: "已启用",
   disabled: "已停用",
-  enable: "启用调度",
-  disable: "停用调度",
-  trigger_now: "立即触发一次",
+  enable: "启用",
+  disable: "停用",
+  trigger_now: "立即触发",
   triggering: "执行中…",
-  save_config: "保存配置",
-  saving: "保存中…",
+  // status card
   status_card: "运行状态",
   next_run: "下次触发",
   last_result: "上次结果",
   streak: "连续成功",
   in_flight: "运行中",
   idle: "空闲",
-  none: "无",
+  none: "—",
   success: "成功",
   fail: "失败",
-  config_card: "调度配置",
-  interval_label: "触发周期",
+  pending: "待触发",
+  running: "执行中",
+  done: "已完成",
+  failed: "失败",
+  // schedule card
+  schedule_card: "触发时间点",
+  schedule_empty: "暂无触发点。在下面添加你想刷新限额的具体时刻。",
+  add_point: "添加触发点",
+  add: "添加",
+  date_label: "日期",
+  time_label: "时间",
+  picker_hint: "本地时区时间。一次性触发，触发后状态变为已完成。",
+  delete: "删除",
+  in_past: "已过期",
+  in: "还有",
+  days: "天",
   hours: "小时",
   minutes: "分钟",
+  seconds: "秒",
+  // config card
+  config_card: "高级配置",
+  show_config: "展开配置",
+  hide_config: "收起",
   command_label: "命令",
   prompt_label: "Prompt 内容",
-  marker_label: "期望标记 (必须出现在输出中)",
+  marker_label: "期望输出标记",
   timeout_label: "单次超时 (秒)",
   retries_label: "最多重试次数",
   backoff_label: "重试退避 (秒，逗号分隔)",
+  save_config: "保存配置",
+  saving: "保存中…",
+  // history
   history_card: "历史记录",
   history_empty: "暂无历史",
   attempts: "尝试",
@@ -51,40 +72,57 @@ const zh: Messages = {
   output_tail: "输出尾部",
   refresh: "刷新",
   error: "错误",
-  warn_quota_window:
-    "提示：建议周期略小于 5 小时，否则可能错过限额窗口。",
 };
 
 const en: Messages = {
   title: "Claude Code Quota Keep-Alive",
-  subtitle: "Send one real request on a schedule to keep the 5h window warm",
+  subtitle:
+    "Send a real request at the moments you choose, so the 5h window stays warm",
   enabled: "Enabled",
   disabled: "Disabled",
-  enable: "Enable schedule",
-  disable: "Disable schedule",
-  trigger_now: "Trigger once now",
+  enable: "Enable",
+  disable: "Disable",
+  trigger_now: "Trigger now",
   triggering: "Running…",
-  save_config: "Save config",
-  saving: "Saving…",
-  status_card: "Runtime status",
-  next_run: "Next run",
+  status_card: "Runtime",
+  next_run: "Next trigger",
   last_result: "Last result",
-  streak: "Success streak",
+  streak: "Streak",
   in_flight: "Running",
   idle: "Idle",
   none: "—",
   success: "Success",
   fail: "Failed",
-  config_card: "Schedule config",
-  interval_label: "Interval",
+  pending: "Pending",
+  running: "Running",
+  done: "Done",
+  failed: "Failed",
+  schedule_card: "Trigger schedule",
+  schedule_empty: "No trigger points yet. Add one below.",
+  add_point: "Add a trigger point",
+  add: "Add",
+  date_label: "Date",
+  time_label: "Time",
+  picker_hint:
+    "Local timezone. One-shot trigger; status flips to Done once executed.",
+  delete: "Delete",
+  in_past: "Past",
+  in: "in",
+  days: "d",
   hours: "h",
   minutes: "m",
+  seconds: "s",
+  config_card: "Advanced config",
+  show_config: "Show",
+  hide_config: "Hide",
   command_label: "Command",
   prompt_label: "Prompt",
-  marker_label: "Expected marker (must appear in output)",
+  marker_label: "Expected marker",
   timeout_label: "Per-attempt timeout (s)",
   retries_label: "Max retries",
-  backoff_label: "Retry backoff (seconds, comma-separated)",
+  backoff_label: "Retry backoff (s, comma-separated)",
+  save_config: "Save config",
+  saving: "Saving…",
   history_card: "History",
   history_empty: "No runs yet",
   attempts: "attempts",
@@ -95,8 +133,6 @@ const en: Messages = {
   output_tail: "Output tail",
   refresh: "Refresh",
   error: "Error",
-  warn_quota_window:
-    "Tip: keep the interval just under 5h, otherwise the window may close.",
 };
 
 const TABLES: Record<Locale, Messages> = { zh, en };
@@ -112,9 +148,10 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 const STORAGE_KEY = "cch.locale";
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const initial = (typeof window !== "undefined"
-    ? (window.localStorage.getItem(STORAGE_KEY) as Locale | null)
-    : null) ?? "zh";
+  const initial =
+    (typeof window !== "undefined"
+      ? (window.localStorage.getItem(STORAGE_KEY) as Locale | null)
+      : null) ?? "zh";
   const [locale, setLocaleState] = useState<Locale>(initial);
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);

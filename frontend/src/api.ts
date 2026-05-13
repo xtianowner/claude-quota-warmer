@@ -26,4 +26,11 @@ export const api = {
   disable: () => req<Config>("/api/disable", { method: "POST" }),
   trigger: () => req<RunRecord>("/api/trigger", { method: "POST" }),
   runs: (limit = 50) => req<RunRecord[]>(`/api/runs?limit=${limit}`),
+  addSchedulePoint: (scheduledAt: string) =>
+    req<Config>("/api/schedule", {
+      method: "POST",
+      body: JSON.stringify({ scheduled_at: scheduledAt }),
+    }),
+  deleteSchedulePoint: (id: string) =>
+    req<Config>(`/api/schedule/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

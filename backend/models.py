@@ -1,4 +1,4 @@
-"""Pydantic models for config, runs and API responses."""
+"""Pydantic models for config, schedule points, runs and API responses."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -11,22 +11,35 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+PointStatus = Literal["pending", "running", "done", "failed"]
+
+
+class SchedulePoint(BaseModel):
+    """A single absolute datetime at which to fire a healthcheck."""
+
+    id: str
+    # ISO 8601 with timezone offset, e.g. "2026-05-14T05:30:00+08:00"
+    scheduled_at: str
+    status: PointStatus = "pending"
+    # Linked RunRecord.id once executed
+    run_id: Optional[str] = None
+    # Free-form note shown on the point status, e.g. "missed (past time on startup)"
+    note: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
 class Config(BaseModel):
     """Persisted user-editable configuration."""
 
     enabled: bool = False
-    # Trigger period in seconds. Default = 4h50min, just under the 5h quota window.
-    interval_seconds: int = Field(default=4 * 3600 + 50 * 60, ge=60, le=12 * 3600)
+    schedule_points: list[SchedulePoint] = Field(default_factory=list)
+
     # Command to invoke. Default `reclaude`; can be set to `claude` for vanilla Claude Code.
     command: str = "reclaude"
-    # Extra args passed before `-p`; left empty by default.
     extra_args: list[str] = Field(default_factory=list)
-    # Prompt body. The expected marker must be a substring of expected response.
     prompt: str = "Claude Code healthcheck: 请只回复 HEALTHCHECK_OK"
     expected_marker: str = "HEALTHCHECK_OK"
-    # Per-attempt timeout (seconds).
     timeout_seconds: int = Field(default=120, ge=10, le=600)
-    # Retry strategy on failure.
     max_retries: int = Field(default=3, ge=0, le=10)
     retry_backoff_seconds: list[int] = Field(default_factory=lambda: [30, 120, 300])
 
@@ -49,8 +62,10 @@ class Attempt(BaseModel):
 
 
 class RunRecord(BaseModel):
-    id: str  # ISO timestamp of run start
+    id: str
     trigger: Literal["schedule", "manual"]
+    # Optional link back to the SchedulePoint that fired this run
+    point_id: Optional[str] = None
     started_at: str
     ended_at: str
     status: Literal["success", "fail"]
@@ -60,7 +75,12 @@ class RunRecord(BaseModel):
 class StatusResponse(BaseModel):
     enabled: bool
     config: Config
-    next_run_at: Optional[str]
+    next_point: Optional[SchedulePoint]  # earliest pending point in the future
     last_run: Optional[RunRecord]
     consecutive_successes: int
-    running: bool  # is a run currently in flight
+    running: bool
+
+
+class AddSchedulePointRequest(BaseModel):
+    # Accept either an absolute ISO (with tz offset), or a local datetime + tz
+    scheduled_at: str
