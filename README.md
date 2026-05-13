@@ -2,6 +2,8 @@
 
 > Keep your Claude Code 5-hour quota window warm by firing one real
 > request at moments you choose.
+>
+> **中文用户**：请直接看 **[中文用户手册](./docs/USER_GUIDE.zh-CN.md)**。
 
 A small daemon + web UI for Claude Code (or [reclaude](https://github.com/xtianowner/reclaude))
 users. You stage a list of absolute datetimes ("2026-05-14 05:30 local
@@ -96,7 +98,8 @@ Architecture diagram, data model, and lifecycle details are in
 
 | | |
 |---|---|
-| [User guide](./docs/USER_GUIDE.md) | Day-to-day usage, troubleshooting, FAQs |
+| **[用户手册（中文）](./docs/USER_GUIDE.zh-CN.md)** | 中文使用指南：安装、配置、界面逐块说明、故障排查、FAQ |
+| [User guide (English)](./docs/USER_GUIDE.md) | Day-to-day usage, troubleshooting, FAQs |
 | [Architecture](./docs/ARCHITECTURE.md) | Internal design, modules, data flow |
 | [API reference](./docs/API.md) | REST endpoints; OpenAPI live at `/docs` |
 | [Verification](./docs/VERIFICATION.md) | How to prove the success badge isn't fake |
