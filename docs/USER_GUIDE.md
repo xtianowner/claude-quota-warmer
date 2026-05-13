@@ -1,5 +1,7 @@
 # User guide
 
+> 中文版：[USER_GUIDE.zh-CN.md](./USER_GUIDE.zh-CN.md)
+
 Plain-language walkthrough for using `claude-quota-warmer`. For
 architecture and API details see [ARCHITECTURE.md](./ARCHITECTURE.md)
 and [API.md](./API.md).
