@@ -132,10 +132,16 @@ export default function App() {
               />
               <ScheduleCard
                 points={status.config.schedule_points}
+                mode={status.config.mode}
                 now={now}
                 onChanged={refresh}
               />
-              <ConfigCard initial={status.config} onSaved={refresh} />
+              <ConfigCard
+                initial={status.config}
+                reclaudeError={status.reclaude_error}
+                quotaSnapshot={status.quota_snapshot}
+                onSaved={refresh}
+              />
             </>
           )}
           <HistoryCard runs={runs} onRefresh={refresh} />

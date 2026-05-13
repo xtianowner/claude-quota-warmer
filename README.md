@@ -38,8 +38,12 @@ pulse continuously — you choose the moments.
 
 ## Features
 
-- **Absolute datetime scheduling** — stage any number of one-off
-  trigger points; each fires once and records the result
+- **Two scheduling modes**
+  - **Manual** — stage any number of absolute datetimes; each fires once
+  - **Auto (reclaude)** — polls reclaude's carpool-quota API every 10 min,
+    reads `resets_at_ms` from the live 5h window, and keeps one upcoming
+    point at `resets_at_ms + 30s` so the next window is touched the moment
+    the old one expires
 - **Retry to success** — failed attempts retry with configurable
   exponential backoff before being marked failed
 - **Real-output validation** — checks the subprocess's actual stdout
@@ -49,7 +53,7 @@ pulse continuously — you choose the moments.
 - **Web UI** — glassmorphism dashboard, responsive down to 320px,
   zh/en bilingual
 - **Local-only** — daemon binds to `127.0.0.1:8765`; no auth, no
-  telemetry
+  telemetry. Credentials live in `data/secrets.json` (chmod 0600).
 - **MIT licensed**
 
 ## Quick start
@@ -66,9 +70,18 @@ cd claude-quota-warmer
 
 Then open <http://127.0.0.1:8765>:
 
+**Manual mode** (default):
+
 1. Click **Add a trigger point**, pick a future datetime, **Add**.
 2. Click the **Enabled** toggle in the top-right.
 3. Optional: click **Trigger now** to verify everything works.
+
+**Auto mode** (reclaude users):
+
+1. In the **Scheduling mode** card, pick **Auto (reclaude)**.
+2. Enter your reclaude email + password, click **Login & enable**.
+3. Click the **Enabled** toggle. The next auto point will appear in the
+   schedule list within seconds and will track each new 5h window.
 
 That's the whole flow. The full [User guide](./docs/USER_GUIDE.md)
 covers configuration, troubleshooting, and uninstalling.
@@ -79,16 +92,28 @@ covers configuration, troubleshooting, and uninstalling.
 launchd / systemd → python -m backend.main (127.0.0.1:8765)
                     │
                     ├─ FastAPI: REST + serves the React SPA
-                    ├─ APScheduler: one DateTrigger per pending point
-                    └─ at fire time:
+                    ├─ APScheduler:
+                    │     · one DateTrigger per pending schedule point
+                    │     · one IntervalTrigger (10 min) for auto mode
+                    └─ DateTrigger fires:
                           asyncio.create_subprocess_exec(reclaude, -p, prompt)
                           → check exit==0 AND marker in stdout
                           → retry with backoff on failure
                           → persist RunRecord
+
+  auto mode poll (every 10 min, only when mode == auto_reclaude):
+    GET https://reclaude.ai/api/app/billing/carpool-quota   (cookie: rc_sid)
+    → if 401, POST /api/auth/login with stored password → refresh cookie
+    → desired_fire_at = max(resets_at_ms, now) + 30s
+    → ensure exactly one future "source=auto" SchedulePoint matches
+      (add / replace if drift > 60s / leave alone)
 ```
 
 Storage:
-- `data/config.json` — your settings + the schedule point list
+- `data/config.json` — your settings + the schedule point list (incl.
+  selected mode and reclaude email)
+- `data/secrets.json` — `rc_sid` cookie + password (chmod 0600). Never
+  in `config.json`, never in API responses.
 - `data/runs.jsonl` — append-only run history with per-attempt detail
 
 Architecture diagram, data model, and lifecycle details are in

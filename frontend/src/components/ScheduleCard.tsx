@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useT } from "../i18n";
 import { api } from "../api";
-import type { SchedulePoint } from "../types";
+import type { Mode, SchedulePoint } from "../types";
 import {
   countdown,
   defaultPointLocal,
@@ -20,10 +20,12 @@ const POINT_TONE: Record<SchedulePoint["status"], BadgeTone> = {
 
 export function ScheduleCard({
   points,
+  mode,
   now,
   onChanged,
 }: {
   points: SchedulePoint[];
+  mode: Mode;
   now: Date;
   onChanged: () => void;
 }) {
@@ -107,8 +109,18 @@ export function ScheduleCard({
                     {statusLabel}
                   </Badge>
                   <div className="min-w-0 flex-1">
-                    <div className="break-all font-mono text-sm font-medium text-slate-900">
-                      {fmtAbsolute(p.scheduled_at)}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="break-all font-mono text-sm font-medium text-slate-900">
+                        {fmtAbsolute(p.scheduled_at)}
+                      </span>
+                      {p.source === "auto" && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-indigo-200/80 bg-indigo-50/80 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700"
+                          title={t("auto_badge")}
+                        >
+                          🔁 {t("auto_badge")}
+                        </span>
+                      )}
                     </div>
                     {cd && !cd.past && (
                       <div className="break-all text-xs text-indigo-600">
@@ -137,33 +149,39 @@ export function ScheduleCard({
           </ul>
         )}
 
-        <div className="rounded-xl border border-white/60 bg-white/50 p-4 backdrop-blur-md">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-              {t("add_point")}
-            </span>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="min-w-0 flex-1">
-              <Input
-                type="datetime-local"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                className="font-mono"
-              />
+        {mode === "manual" ? (
+          <div className="rounded-xl border border-white/60 bg-white/50 p-4 backdrop-blur-md">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                {t("add_point")}
+              </span>
             </div>
-            <Button
-              onClick={onAdd}
-              disabled={adding || !draft}
-              className="self-end sm:self-auto sm:shrink-0"
-            >
-              <IconPlus width={14} height={14} />
-              {t("add")}
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <Input
+                  type="datetime-local"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+              <Button
+                onClick={onAdd}
+                disabled={adding || !draft}
+                className="self-end sm:self-auto sm:shrink-0"
+              >
+                <IconPlus width={14} height={14} />
+                {t("add")}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">{t("picker_hint")}</p>
+            {err && <p className="mt-1.5 text-xs text-rose-600">{err}</p>}
           </div>
-          <p className="mt-2 text-xs text-slate-500">{t("picker_hint")}</p>
-          {err && <p className="mt-1.5 text-xs text-rose-600">{err}</p>}
-        </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-indigo-300/60 bg-indigo-50/40 px-4 py-3 text-center text-xs text-indigo-700">
+            🔁 {t("mode_auto_hint")}
+          </p>
+        )}
       </CardBody>
     </GlassCard>
   );

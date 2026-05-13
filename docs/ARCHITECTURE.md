@@ -38,6 +38,11 @@ an append-only JSONL run log.
         │  │  HealthcheckScheduler (backend/scheduler.py)        │ │
         │  │  - AsyncIOScheduler (APScheduler)                   │ │
         │  │  - one DateTrigger job per pending SchedulePoint    │ │
+        │  │  - one IntervalTrigger (10 min) reclaude poll       │ │
+        │  │    → GET /api/app/billing/carpool-quota             │ │
+        │  │    → on 401, POST /api/auth/login to refresh        │ │
+        │  │    → enqueue/replace one source="auto" point at     │ │
+        │  │      max(resets_at_ms, now) + auto_offset_seconds   │ │
         │  │  - asyncio.Lock prevents concurrent runs            │ │
         │  └──────────────────┬──────────────────────────────────┘ │
         │                     │ on fire / manual trigger           │
@@ -55,8 +60,10 @@ an append-only JSONL run log.
                    │   (CLI binary)   │
                    └──────────────────┘
 
-                Persistence (backend/config.py, backend/storage.py)
+                Persistence (backend/config.py, backend/storage.py,
+                             backend/secrets.py)
                 ├── data/config.json        (Config, full overwrite)
+                ├── data/secrets.json       (rc_sid + password, chmod 0600)
                 └── data/runs.jsonl         (RunRecord, append-only)
 
                 Frontend (frontend/src)
@@ -78,6 +85,7 @@ SchedulePoint
   id: str                  # short uuid hex
   scheduled_at: str        # ISO 8601 with offset
   status: "pending" | "running" | "done" | "failed"
+  source: "manual" | "auto"          # how the point was created
   run_id: Optional[str]    # links to RunRecord.id once executed
   note: Optional[str]      # human-readable reason on failure
   created_at: str
@@ -85,6 +93,9 @@ SchedulePoint
 Config
   enabled: bool
   schedule_points: list[SchedulePoint]
+  mode: "manual" | "auto_reclaude"   # scheduling strategy
+  reclaude_email: Optional[str]      # set on login, cleared on logout
+  auto_offset_seconds: int           # 0–3600, default 30
   command: str                       # default "reclaude"
   extra_args: list[str]              # passed before "-p"
   prompt: str
@@ -92,6 +103,14 @@ Config
   timeout_seconds: int               # 10–600
   max_retries: int                   # 0–10
   retry_backoff_seconds: list[int]   # sleep before retry N
+
+QuotaSnapshot                         # cached in scheduler memory only
+  used_usd: float
+  quota_usd: float
+  resets_at_ms: int                  # the live 5h window's end (UTC ms)
+  enabled: bool
+  status: str                         # "active" etc
+  fetched_at: str
 
 Attempt
   started_at / ended_at: str

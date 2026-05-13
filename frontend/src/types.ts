@@ -1,9 +1,12 @@
 export type PointStatus = "pending" | "running" | "done" | "failed";
+export type PointSource = "manual" | "auto";
+export type Mode = "manual" | "auto_reclaude";
 
 export interface SchedulePoint {
   id: string;
   scheduled_at: string;
   status: PointStatus;
+  source: PointSource;
   run_id: string | null;
   note: string | null;
   created_at: string;
@@ -12,6 +15,9 @@ export interface SchedulePoint {
 export interface Config {
   enabled: boolean;
   schedule_points: SchedulePoint[];
+  mode: Mode;
+  reclaude_email: string | null;
+  auto_offset_seconds: number;
   command: string;
   extra_args: string[];
   prompt: string;
@@ -41,6 +47,21 @@ export interface RunRecord {
   attempts: Attempt[];
 }
 
+export interface QuotaSnapshot {
+  used_usd: number;
+  quota_usd: number;
+  resets_at_ms: number;
+  enabled: boolean;
+  status: string;
+  fetched_at: string;
+}
+
+export type ReclaudeError =
+  | "not_configured"
+  | "login_required"
+  | "account_disabled"
+  | "network";
+
 export interface Status {
   enabled: boolean;
   config: Config;
@@ -48,4 +69,13 @@ export interface Status {
   last_run: RunRecord | null;
   consecutive_successes: number;
   running: boolean;
+  quota_snapshot: QuotaSnapshot | null;
+  reclaude_error: ReclaudeError | null;
+}
+
+export interface ReclaudeStatus {
+  has_password: boolean;
+  email: string | null;
+  snapshot: QuotaSnapshot | null;
+  error: ReclaudeError | null;
 }

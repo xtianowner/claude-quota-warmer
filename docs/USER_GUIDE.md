@@ -82,14 +82,42 @@ The dashboard has four sections, top to bottom:
   immediately. Useful for testing your setup. Does **not** affect
   your schedule list.
 
-### 3. Trigger schedule
+### 3. Scheduling mode (above the schedule card)
+
+Two modes:
+
+- **Manual** (default) — you add absolute datetimes by hand.
+- **Auto (reclaude)** — the daemon queries
+  `https://reclaude.ai/api/app/billing/carpool-quota` every 10 minutes,
+  reads `resets_at_ms` from the live 5-hour window, and keeps exactly
+  one upcoming `source=auto` trigger point at `resets_at_ms + 30s`
+  (so the next window is touched the moment the current one expires).
+
+To enable auto mode:
+1. Pick **Auto (reclaude)** in the mode radio.
+2. Enter your reclaude email + password.
+3. Click **Login & enable**. The backend hits `POST /api/auth/login`,
+   stores the resulting `rc_sid` and your password in
+   `data/secrets.json` (chmod 0600). When `rc_sid` later expires, the
+   stored password is used to mint a fresh one automatically.
+4. Toggle the **Enabled** switch in the header. Within a minute the
+   first auto point should appear in the schedule list, tagged 🔁.
+
+To leave auto mode, click **Unbind** — that clears the cookie and
+password, drops mode back to Manual, and stops polling.
+
+### 4. Trigger schedule
 This is where you say *when* the healthchecks should fire.
 
-To add a moment:
+In Manual mode, to add a moment:
 1. Pick a date and time in the input. The picker is your **local
    timezone**.
 2. Click **Add**. The point shows up in the list with state `Pending`
    and a countdown.
+
+In Auto mode the "Add a trigger point" form is hidden — auto points
+are managed by the 10-min poll. You can still delete an auto point
+manually; the next poll cycle will simply create a new one.
 
 Each row in the list shows:
 - A status badge (`Pending`, `Running`, `Done`, `Failed`)
@@ -104,7 +132,7 @@ fail, it flips to `Failed` with an inline note explaining why.
 Tip: stage a chain like `tomorrow 05:30 → tomorrow 10:30 → tomorrow
 15:30 → tomorrow 20:30` to cover four 5-hour windows in one day.
 
-### 4. Advanced config (collapsed by default)
+### 5. Advanced config (collapsed by default)
 
 Click **Show** on the *Advanced config* card to edit:
 
@@ -120,7 +148,7 @@ Click **Show** on the *Advanced config* card to edit:
 Click **Save config** to persist. The new settings take effect on the
 next run.
 
-### 5. History
+### 6. History
 Newest-first list of runs. Click a row to expand the per-attempt
 detail:
 
@@ -210,12 +238,30 @@ in Advanced config. Default is 120s; safe upper bound is 600s.
 ### Port 8765 in use
 Re-install with `HEALTHCHECK_PORT=8766 ./scripts/install.sh`.
 
+### Auto mode: "reclaude account not configured"
+You're in auto mode but haven't logged in. Open the *Scheduling mode*
+card, fill in email + password, click **Login & enable**.
+
+### Auto mode: "reclaude session expired"
+The stored `rc_sid` was rejected and the stored password also failed
+(possibly the password was changed on reclaude.ai). Click **Unbind**
+in the mode card and log in again.
+
+### Auto mode: no auto point appears
+- The polling job runs every 10 minutes. Click **Refresh now** in the
+  *Scheduling mode* card to force a cycle.
+- Make sure the master **Enabled** toggle is on — disabled mode skips
+  scheduling even when an auto point is on the list.
+- Tail `data/logs/daemon.out.log` for lines starting with
+  `reclaude poll:`.
+
 ## Where things live
 
 ```
 ~/path/to/claude-quota-warmer/
 ├── data/
-│   ├── config.json        # Your settings + schedule points
+│   ├── config.json        # Your settings + schedule points + mode + email
+│   ├── secrets.json       # rc_sid cookie + password (chmod 0600)
 │   ├── runs.jsonl         # Append-only run history
 │   └── logs/
 │       ├── daemon.out.log
